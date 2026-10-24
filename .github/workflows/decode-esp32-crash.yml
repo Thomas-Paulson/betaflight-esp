@@ -40,33 +40,81 @@ jobs:
             -v "$GITHUB_WORKSPACE:/src" \
             -w /src \
             betaflight/betaflight-build:esp_idf-master \
-            sh -lc '
+            sh -c '
               set -eu
 
-              ELF="$(find obj -type f -name "*.elf" -print -quit)"
-
-              if [ -z "$ELF" ]; then
-                echo "ERROR: No ELF file found."
-                echo "Files produced by the build:"
-                find obj -type f | head -200
-                exit 1
-              fi
+              ELF="obj/main/betaflight_ESP32WROOM.elf"
 
               echo "======================================"
               echo "ESP32WROOM CRASH DECODER"
               echo "======================================"
-              echo "ELF: $ELF"
+              echo "Crash address: $CRASH_ADDRESS"
+              echo
+
+              if [ ! -f "$ELF" ]; then
+                echo "ERROR: Firmware ELF not found: $ELF"
+                echo "Available ELF files:"
+                find obj -type f -name "*.elf" -print
+                exit 1
+              fi
+
+              ADDR2LINE="$(command -v xtensa-esp-elf-addr2line || true)"
+
+              if [ -z "$ADDR2LINE" ]; then
+                ADDR2LINE="$(command -v xtensa-esp32-elf-addr2line || true)"
+              fi
+
+              if [ -z "$ADDR2LINE" ]; then
+                echo "Address decoder is not on PATH."
+                echo "Searching the filesystem for Xtensa addr2line..."
+
+                ADDR2LINE="$(find / -type f \
+                  \( -name "xtensa-esp-elf-addr2line" \
+                  -o -name "xtensa-esp32-elf-addr2line" \) \
+                  -print -quit 2>/dev/null || true)"
+              fi
+
+              if [ -z "$ADDR2LINE" ]; then
+                echo
+                echo "ERROR: Could not locate the Xtensa addr2line tool."
+                echo "PATH=$PATH"
+                echo
+                echo "Potential toolchain directories:"
+                ls -la /opt 2>/dev/null || true
+                ls -la /usr/local 2>/dev/null || true
+                echo
+                echo "Installed Xtensa-related files:"
+                find /opt /usr /root /home \
+                  -iname "*xtensa*" -print 2>/dev/null | head -100 || true
+                exit 127
+              fi
+
+              echo "Firmware ELF: $ELF"
+              echo "Decoder: $ADDR2LINE"
               echo "Address: $CRASH_ADDRESS"
               echo
 
-              echo "=== Decoded source location ==="
-              xtensa-esp-elf-addr2line \
-                -pfiaC -e "$ELF" "$CRASH_ADDRESS"
+              echo "======================================"
+              echo "DECODED SOURCE LOCATION"
+              echo "======================================"
+
+              "$ADDR2LINE" \
+                -pfiaC \
+                -e "$ELF" \
+                "$CRASH_ADDRESS"
 
               echo
-              echo "=== Detailed inline call information ==="
-              xtensa-esp-elf-addr2line \
-                -aipfC -e "$ELF" "$CRASH_ADDRESS"
+              echo "======================================"
+              echo "DETAILED CALL INFORMATION"
+              echo "======================================"
+
+              "$ADDR2LINE" \
+                -aipfC \
+                -e "$ELF" \
+                "$CRASH_ADDRESS"
+
+              echo
+              echo "Decoding finished."
             '
 
       - name: Upload debug files
