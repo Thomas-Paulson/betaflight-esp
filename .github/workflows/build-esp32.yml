@@ -25,13 +25,29 @@ jobs:
             betaflight/betaflight-build:esp_idf-master \
             make TARGET=ESP32WROOM
 
-      - name: Find firmware binaries
+      - name: Decode crash address
         run: |
-          find obj -type f -name '*.bin' -print
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src \
+            betaflight/betaflight-build:esp_idf-master \
+            sh -lc '
+              ELF=$(find obj -type f -name "*.elf" -print -quit)
+              if [ -z "$ELF" ]; then
+                echo "ERROR: No ELF file found"
+                find obj -type f
+                exit 1
+              fi
+              echo "Debugging: $ELF"
+              xtensa-esp32-elf-addr2line -pfiaC -e "$ELF" 0x400d1065
+            '
 
-      - name: Upload firmware
+      - name: Upload firmware and debug files
         uses: actions/upload-artifact@v4
         with:
-          name: Betaflight-ESP32WROOM
-          path: obj/**/*.bin
+          name: Betaflight-ESP32WROOM-debug
+          path: |
+            obj/**/*.bin
+            obj/**/*.elf
+            obj/**/*.map
           if-no-files-found: error
