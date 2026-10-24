@@ -60,12 +60,12 @@ jobs:
               echo
 
               echo "=== Decoded source location ==="
-              xtensa-esp32-elf-addr2line \
+              xtensa-esp-elf-addr2line \
                 -pfiaC -e "$ELF" "$CRASH_ADDRESS"
 
               echo
               echo "=== Detailed inline call information ==="
-              xtensa-esp32-elf-addr2line \
+              xtensa-esp-elf-addr2line \
                 -aipfC -e "$ELF" "$CRASH_ADDRESS"
             '
 
