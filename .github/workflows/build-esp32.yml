@@ -1,0 +1,37 @@
+name: Build Betaflight ESP32WROOM
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Betaflight
+        uses: actions/checkout@v4
+
+      - name: Initialise required submodules
+        run: git submodule update --init --recursive
+
+      - name: Build ESP32WROOM firmware
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src \
+            betaflight/betaflight-build:esp_idf-master \
+            make TARGET=ESP32WROOM
+
+      - name: Find firmware binaries
+        run: |
+          find obj -type f -name '*.bin' -print
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: Betaflight-ESP32WROOM
+          path: obj/**/*.bin
+          if-no-files-found: error
